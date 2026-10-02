@@ -11,12 +11,7 @@ interface CardProps {
 /** Neutral surface used for every content block in the product. */
 export function Card({ children, className, as: Tag = "section" }: CardProps) {
   return (
-    <Tag
-      className={cn(
-        "rounded-xl border border-muted-border bg-white shadow-sm",
-        className,
-      )}
-    >
+    <Tag className={cn("rounded-xl border border-muted-border bg-white shadow-sm", className)}>
       {children}
     </Tag>
   );

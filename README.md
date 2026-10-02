@@ -175,7 +175,7 @@ or through the documented procedure in `docs/security.md`.
 | Lint + format | `make lint` | zero findings |
 | Types | `make typecheck` | mypy clean, `tsc --noEmit` clean |
 | Unit + API tests | `make test` | all green |
-| Coverage | `pytest --cov=verifyke --cov-fail-under=80` | ≥ 80% (CI) |
+| Coverage | `pytest --cov=verifyke --cov=verifyke_security --cov-fail-under=80` | ≥ 80% (CI) |
 | Migrations | `alembic upgrade head` | applies cleanly on a fresh database |
 | Containers | CI image builds | both images build |
 | Secrets | gitleaks | no committed secrets; `.env` is untracked |

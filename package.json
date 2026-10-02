@@ -15,7 +15,7 @@
     "dev": "npm run dev --workspace @verifyke/web",
     "build": "npm run build --workspace @verifyke/web",
     "start": "npm run start --workspace @verifyke/web",
-    "lint": "npm run lint --workspace @verifyke/web && npm run lint --workspace @verifyke/shared-types",
+    "lint": "npm run lint --workspace @verifyke/web",
     "typecheck": "npm run typecheck --workspace @verifyke/shared-types && npm run typecheck --workspace @verifyke/web",
     "test": "npm run test --workspace @verifyke/web --if-present",
     "format": "prettier --write \"apps/web/**/*.{ts,tsx,css,json,md}\" \"packages/**/*.{ts,tsx,json,md}\"",

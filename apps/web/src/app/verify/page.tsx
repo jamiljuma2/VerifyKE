@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Card, CardBody, CardHeader, StatusPill } from "@verifyke/ui";
 import { VERIFICATION_STATUSES, type VerificationStatus } from "@verifyke/shared-types";
@@ -14,12 +15,16 @@ export const metadata: Metadata = {
 
 const STATUS_HELP: Record<VerificationStatus, string> = {
   VERIFIED: "The issuer's record, the digital signature and the document content all agree.",
-  SUSPECT: "Something does not add up - for example a repaired PDF or a QR code that points elsewhere. A human should review it.",
+  SUSPECT:
+    "Something does not add up - for example a repaired PDF or a QR code that points elsewhere. A human should review it.",
   FAILED: "A decisive check failed. The document does not match what the institution issued.",
-  NOT_FOUND: "No certificate matches that number or document in any connected institution's records.",
+  NOT_FOUND:
+    "No certificate matches that number or document in any connected institution's records.",
   REVOKED: "The certificate was validly issued but has since been withdrawn by the institution.",
-  EXPIRED: "The certificate is past its validity date; it may still be genuine, but it is no longer current.",
-  PENDING: "Verification is still running, usually because a document is being analysed. Check again in a moment.",
+  EXPIRED:
+    "The certificate is past its validity date; it may still be genuine, but it is no longer current.",
+  PENDING:
+    "Verification is still running, usually because a document is being analysed. Check again in a moment.",
 };
 
 export default function VerifyPage() {
@@ -68,9 +73,9 @@ export default function VerifyPage() {
         <p className="mt-6 text-sm text-muted">
           Documents you upload are processed to answer this one query and deleted under our
           retention policy. Read more in{" "}
-          <a href="/privacy" className="underline hover:text-brand-700">
+          <Link href="/privacy" className="underline hover:text-brand-700">
             Privacy &amp; data protection
-          </a>
+          </Link>
           .
         </p>
       </section>

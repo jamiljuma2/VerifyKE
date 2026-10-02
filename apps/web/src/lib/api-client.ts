@@ -33,7 +33,9 @@ export class ApiError extends Error {
 
   /** True when retrying the same request could plausibly succeed. */
   get isRetryable(): boolean {
-    return this.status >= 500 || this.code === "RATE_LIMITED" || this.code === "SERVICE_UNAVAILABLE";
+    return (
+      this.status >= 500 || this.code === "RATE_LIMITED" || this.code === "SERVICE_UNAVAILABLE"
+    );
   }
 }
 

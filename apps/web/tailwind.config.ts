@@ -9,10 +9,7 @@ import type { Config } from "tailwindcss";
  * on colour alone (icons and text labels always accompany it).
  */
 const config: Config = {
-  content: [
-    "./src/**/*.{ts,tsx}",
-    "../../packages/ui/src/**/*.{ts,tsx}",
-  ],
+  content: ["./src/**/*.{ts,tsx}", "../../packages/ui/src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {

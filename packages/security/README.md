@@ -4,14 +4,14 @@ Cryptographic primitives for VerifyKE (Phase 2 of the roadmap). Pure functions
 over explicit key material: **no configuration, no database, no I/O** - the
 API layer (`apps/api/verifyke`) supplies secrets and persistence.
 
-| Module | Responsibility |
-| --- | --- |
-| `canonicalisation` | RFC 8785 (JCS) canonical JSON: byte-exact serialisation for signing |
-| `hashing` | SHA-256 of bytes, streams and files; constant-time digest comparison |
-| `keys` | Ed25519 key generation, AES-256-GCM wrapping under the master key, `KeyVersion` status (`active` / `retired` / `compromised`) |
-| `signing` | Sign/verify canonical payloads; JSON-ready signature envelopes |
-| `encoding` | Unpadded base64url for storage and transport |
-| `errors` | One `SecurityError` hierarchy - never a leaked library traceback |
+| Module             | Responsibility                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `canonicalisation` | RFC 8785 (JCS) canonical JSON: byte-exact serialisation for signing                                                           |
+| `hashing`          | SHA-256 of bytes, streams and files; constant-time digest comparison                                                          |
+| `keys`             | Ed25519 key generation, AES-256-GCM wrapping under the master key, `KeyVersion` status (`active` / `retired` / `compromised`) |
+| `signing`          | Sign/verify canonical payloads; JSON-ready signature envelopes                                                                |
+| `encoding`         | Unpadded base64url for storage and transport                                                                                  |
+| `errors`           | One `SecurityError` hierarchy - never a leaked library traceback                                                              |
 
 ## Guarantees
 

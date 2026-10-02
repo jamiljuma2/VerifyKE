@@ -27,7 +27,7 @@ export default function UploadVerifyPage() {
       <p className="mt-3 max-w-prose text-muted">
         Upload a photo or PDF and VerifyKE will read the certificate number, look the certificate up
         with the issuer, and compare the document you uploaded with the record on file. Alterations
-        show up as mismatches in the content hash, the layout or the file's own metadata.
+        show up as mismatches in the content hash, the layout or the file&apos;s own metadata.
       </p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -46,8 +46,8 @@ export default function UploadVerifyPage() {
           </CardHeader>
           <CardBody className="space-y-3 text-sm text-muted">
             <p>
-              Uploads are used only to answer this check. They are deleted under our retention policy
-              once the result has been produced and its audit record written.
+              Uploads are used only to answer this check. They are deleted under our retention
+              policy once the result has been produced and its audit record written.
             </p>
             <p>
               Do not upload documents that are not yours to check. Every access to a certificate

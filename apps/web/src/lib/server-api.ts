@@ -71,7 +71,7 @@ export async function serverApiFetch<T>(
           message: payload.error.message,
           requestId: payload.error.request_id,
         },
-      },
+      };
     }
     return {
       ok: false,

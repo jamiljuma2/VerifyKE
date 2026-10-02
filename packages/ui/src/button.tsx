@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import Link from "next/link";
 
@@ -29,18 +30,14 @@ export function ButtonLink({
   className,
   prefetch,
 }: {
-  href: string;
+  href: Route;
   children: ReactNode;
   variant?: Variant;
   className?: string;
   prefetch?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      prefetch={prefetch}
-      className={cn(BUTTON_BASE, VARIANTS[variant], className)}
-    >
+    <Link href={href} prefetch={prefetch} className={cn(BUTTON_BASE, VARIANTS[variant], className)}>
       {children}
     </Link>
   );

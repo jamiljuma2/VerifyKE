@@ -1,8 +1,7 @@
-import { Card, CardBody, CardHeader, StatusPill } from "@verifyke/ui";
-import {
-  STATUS_PRESENTATION,
-  type CheckOutcome,
-  type VerificationResult as VerificationResultData,
+import { Card, CardBody, CardHeader, STATUS_PRESENTATION, StatusPill } from "@verifyke/ui";
+import type {
+  CheckOutcome,
+  VerificationResult as VerificationResultData,
 } from "@verifyke/shared-types";
 
 const OUTCOME_STYLE: Record<CheckOutcome, { label: string; className: string; mark: string }> = {

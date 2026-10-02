@@ -47,10 +47,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Workspace packages ship TypeScript source; Next compiles them in-place.
   transpilePackages: ["@verifyke/shared-types", "@verifyke/ui"],
-  experimental: {
-    // Surfaces accidental client-side use of server-only modules.
-    typedRoutes: true,
-  },
+  // Surfaces accidental client-side use of server-only modules.
+  // (Moved out of `experimental` in Next 15.5; the old location still works but warns.)
+  typedRoutes: true,
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
