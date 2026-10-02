@@ -3,7 +3,7 @@ name: CI
 # Gates that must pass before any change reaches main. The suite is split so a
 # failure in one area does not hide the others, and so the fast checks report
 # within seconds while the heavy jobs run in parallel.
-on
+on:
   push:
     branches: [main]
   pull_request:
