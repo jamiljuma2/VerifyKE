@@ -31,12 +31,8 @@ export function SiteHeader() {
           >
             For institutions
           </Link>
-          <Link
-            href="/login"
-            className="rounded-md bg-brand-600 px-3 py-2 text-white hover:bg-brand-700"
-          >
-            Sign in
-          </Link>
+          {/* Sign-in appears with the institution console; until the auth service is
+              live, a link here would only lead to a dead end. */}
         </nav>
       </div>
     </header>
