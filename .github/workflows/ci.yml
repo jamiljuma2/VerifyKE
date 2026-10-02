@@ -67,16 +67,16 @@ jobs:
           pip install ".[dev]"
 
       - name: Ruff (lint + format check)
-        run: ruff check . && ruff format --check .
+        run: ruff check . ../../packages/security && ruff format --check . ../../packages/security
 
       - name: Mypy (type check)
-        run: mypy verifyke
+        run: mypy verifyke ../../packages/security/verifyke_security
 
       - name: Alembic migrations apply cleanly
         run: alembic upgrade head
 
       - name: Pytest (with coverage gate)
-        run: pytest --cov=verifyke --cov-report=term-missing --cov-fail-under=80
+        run: pytest --cov=verifyke --cov=verifyke_security --cov-report=term-missing --cov-fail-under=80
 
   # ------------------------------------------------------------------ frontend
   web-quality:

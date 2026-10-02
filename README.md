@@ -47,7 +47,7 @@ VerifyKE/
 ├── packages/
 │   ├── shared-types/            TypeScript contracts shared with the API
 │   ├── ui/                      Tailwind design-system primitives
-│   ├── security/                (Phase 2) Ed25519 signing, canonicalisation, key hierarchy
+│   ├── security/                Ed25519 signing, canonicalisation, key hierarchy
 │   └── document-processing/     (Phase 4) PDF/image analysis, OCR, tamper detection
 ├── services/
 │   ├── verification/            (Phase 4) verification engine

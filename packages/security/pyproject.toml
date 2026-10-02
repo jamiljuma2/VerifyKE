@@ -1,0 +1,54 @@
+# The security package ships as a plain Python distribution that the API adds
+# to its pytest/pythonpath (see apps/api/pyproject.toml); explicit package
+# discovery is declared so `pip install packages/security` also works.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "verifyke-security"
+version = "0.1.0"
+description = "VerifyKE security primitives: JCS canonicalisation, SHA-256 hashing, Ed25519 signing, master-key wrapping"
+requires-python = ">=3.12"
+license = "LicenseRef-Proprietary"
+dependencies = [
+    "cryptography>=43.0",
+    "rfc8785>=0.1.4",
+]
+
+[tool.setuptools.packages.find]
+include = ["verifyke_security*"]
+
+# Tool configuration mirrors apps/api/pyproject.toml so the same quality gates
+# (line length, lint rules, mypy strictness) apply to this package.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "S", "RUF"]
+ignore = [
+    "S101",   # assert is fine in tests
+    "B008",   # FastAPI dependency defaults are function calls by design
+    "RUF012", # mutable class attrs are fine for pydantic/SQLAlchemy models
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "verifyke",
+    "verifyke_security",
+    "verifyke_document_processing",
+    "verifyke_verification",
+    "verifyke_notifications",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

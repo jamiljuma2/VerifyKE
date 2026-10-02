@@ -39,23 +39,23 @@ $(VENV)/bin/uvicorn verifyke.main:app --reload --reload-dir $(API_DIR)/verifyke 
 web: ## Run the Next.js app on :3000
 npm run dev --workspace @verifyke/web
 
-test: ## Run the whole test suite
-$(VENV)/bin/pytest -c $(API_DIR)/pyproject.toml $(API_DIR)/tests
+test: ## Run the whole test suite with the CI coverage gate
+$(VENV)/bin/pytest -c $(API_DIR)/pyproject.toml $(API_DIR)/tests --cov=verifyke --cov=verifyke_security --cov-report=term-missing --cov-fail-under=80
 
 check: lint typecheck test ## Everything CI runs for a pull request
 
 lint: ## Ruff (lint + format check) for Python, ESLint for TypeScript
-$(VENV)/bin/ruff check $(API_DIR)
-$(VENV)/bin/ruff format --check $(API_DIR)
+$(VENV)/bin/ruff check $(API_DIR) packages/security
+$(VENV)/bin/ruff format --check $(API_DIR) packages/security
 npm run lint --if-present
 
 format: ## Auto-format Python and TypeScript
-$(VENV)/bin/ruff format $(API_DIR)
-$(VENV)/bin/ruff check --fix $(API_DIR)
+$(VENV)/bin/ruff format $(API_DIR) packages/security
+$(VENV)/bin/ruff check --fix $(API_DIR) packages/security
 npm run format --if-present
 
 typecheck: ## Mypy for Python, tsc for TypeScript
-$(VENV)/bin/mypy --config-file $(API_DIR)/pyproject.toml $(API_DIR)/verifyke
+$(VENV)/bin/mypy --config-file $(API_DIR)/pyproject.toml $(API_DIR)/verifyke packages/security/verifyke_security
 npm run typecheck --if-present
 
 migrate: ## Apply all database migrations
