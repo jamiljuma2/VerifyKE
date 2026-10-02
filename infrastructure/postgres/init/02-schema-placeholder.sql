@@ -1,0 +1,9 @@
+-- Intentionally empty.
+--
+-- All schema objects (tables, indexes, RLS policies, triggers) are created by
+-- Alembic migrations in apps/api/migrations/versions so that the database shape
+-- is version-controlled and reviewable:
+--
+--   docker compose exec api alembic upgrade head
+--
+-- This file exists only to document that ordering guarantee.

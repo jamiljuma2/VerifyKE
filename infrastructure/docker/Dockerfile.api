@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1.7
+# VerifyKE API / worker image.
+#
+# Pinned to Python 3.12-slim: 3.12 is the version every dependency (including
+# psycopg, PyMuPDF and Pillow) publishes manylinux wheels for, which keeps the
+# production image reproducible and small.
+#
+# Build (from the repository root):
+#   docker build -f infrastructure/docker/Dockerfile.api -t verifyke-api .
+
+# ---------------------------------------------------------------- builder
+FROM python:3.12-slim AS builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Build toolchain is needed only while wheels are compiled, never at runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+        libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy only the dependency manifests first so the layer is cached across code edits.
+COPY apps/api/pyproject.toml /build/apps/api/pyproject.toml
+COPY apps/api/README.md /build/apps/api/README.md
+
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
+    && /opt/venv/bin/pip install --no-cache-dir /build/apps/api
+
+# ---------------------------------------------------------------- runtime
+FROM python:3.12-slim AS runtime
+
+ARG GIT_SHA=unknown
+ARG BUILD_DATE=unknown
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    VERIFYKE_GIT_SHA=${GIT_SHA} \
+    VERIFYKE_BUILD_DATE=${BUILD_DATE}
+
+# Runtime libraries: libmagic for MIME sniffing, tesseract for OCR,
+# poppler-utils for PDF rasterisation, curl for the container healthcheck.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libmagic1 \
+        tesseract-ocr \
+        poppler-utils \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 verifyke \
+    && useradd --uid 10001 --gid verifyke --create-home --shell /usr/sbin/nologin verifyke
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app
+
+# Application source and shared internal packages.
+COPY --chown=verifyke:verifyke apps/api /app/apps/api
+COPY --chown=verifyke:verifyke packages /app/packages
+COPY --chown=verifyke:verifyke services /app/services
+
+ENV PYTHONPATH=/app/apps/api:/app/packages/security:/app/packages/document-processing:/app/services/verification:/app/services/notifications
+
+USER verifyke
+
+WORKDIR /app/apps/api
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://localhost:8000/health || exit 1
+
+# Uvicorn with the ASGI workers used behind Nginx. Overridden by Compose for the
+# Celery worker (same image, different command).
+CMD ["uvicorn", "verifyke.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]

@@ -1,0 +1,296 @@
+# VerifyKE - single-host development/production-shaped stack.
+#
+# Bring everything up:      docker compose up -d
+# Follow application logs:  docker compose logs -f api worker
+# Run migrations:           docker compose exec api alembic upgrade head
+#
+# Required: copy .env.example to .env first. Docker Compose reads that file for
+# both variable interpolation and container environment.
+name: verifyke
+
+x-api-env: &api-env
+  VK_APP_ENV: ${VK_APP_ENV:-development}
+  VK_DEBUG: ${VK_DEBUG:-false}
+  VK_WEB_BASE_URL: ${VK_WEB_BASE_URL:-http://localhost:3000}
+  VK_API_BASE_URL: ${VK_API_BASE_URL:-http://localhost:8000}
+  VK_SECRET_KEY: ${VK_SECRET_KEY:?VK_SECRET_KEY must be set in .env}
+  VK_ACCESS_TOKEN_TTL_MINUTES: ${VK_ACCESS_TOKEN_TTL_MINUTES:-10}
+  VK_REFRESH_TOKEN_TTL_DAYS: ${VK_REFRESH_TOKEN_TTL_DAYS:-14}
+  VK_COOKIE_SECURE: ${VK_COOKIE_SECURE:-false}
+  VK_COOKIE_SAMESITE: ${VK_COOKIE_SAMESITE:-strict}
+  VK_MFA_REQUIRED_ROLES: ${VK_MFA_REQUIRED_ROLES:-SUPER_ADMIN,INSTITUTION_ADMIN}
+  # Container-internal hostnames override the host-facing values in .env.
+  VK_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-verifyke}:${POSTGRES_PASSWORD:-verifyke}@postgres:5432/${POSTGRES_DB:-verifyke}
+  VK_REDIS_URL: redis://redis:6379/0
+  VK_CELERY_BROKER_URL: redis://redis:6379/1
+  VK_CELERY_RESULT_BACKEND: redis://redis:6379/2
+  VK_STORAGE_BACKEND: ${VK_STORAGE_BACKEND:-s3}
+  VK_S3_ENDPOINT_URL: http://minio:9000
+  VK_S3_REGION: ${VK_S3_REGION:-us-east-1}
+  VK_S3_ACCESS_KEY: ${S3_ACCESS_KEY:-verifyke-minio}
+  VK_S3_SECRET_KEY: ${S3_SECRET_KEY:-verifyke-minio-secret}
+  VK_S3_BUCKET_CERTIFICATES: ${VK_S3_BUCKET_CERTIFICATES:-verifyke-certificates}
+  VK_S3_BUCKET_UPLOADS: ${VK_S3_BUCKET_UPLOADS:-verifyke-uploads}
+  VK_S3_BUCKET_INSTITUTION_DOCS: ${VK_S3_BUCKET_INSTITUTION_DOCS:-verifyke-institution-docs}
+  VK_MAIL_BACKEND: ${VK_MAIL_BACKEND:-smtp}
+  VK_SMTP_HOST: mailpit
+  VK_SMTP_PORT: "1025"
+  VK_MAIL_FROM: ${VK_MAIL_FROM:-no-reply@verifyke.local}
+  VK_KEY_PROVIDER: ${VK_KEY_PROVIDER:-local}
+  VK_MASTER_KEY: ${VK_MASTER_KEY:-}
+  VK_RATE_LIMIT_ENABLED: ${VK_RATE_LIMIT_ENABLED:-true}
+  VK_MALWARE_SCANNER: ${VK_MALWARE_SCANNER:-none}
+  VK_CLAMAV_HOST: clamav
+  VK_LOG_LEVEL: ${VK_LOG_LEVEL:-INFO}
+  VK_LOG_JSON: ${VK_LOG_JSON:-false}
+  VK_METRICS_ENABLED: ${VK_METRICS_ENABLED:-true}
+  VK_CORS_ORIGINS: ${VK_CORS_ORIGINS:-http://localhost:3000}
+  VK_ALLOWED_HOSTS: ${VK_ALLOWED_HOSTS:-localhost,127.0.0.1,api,web,nginx}
+  VK_PAYMENT_PROVIDER: ${VK_PAYMENT_PROVIDER:-sandbox}
+  VK_PAYHERO_AUTH_TOKEN: ${VK_PAYHERO_AUTH_TOKEN:-}
+  VK_PAYHERO_CHANNEL_ID: ${VK_PAYHERO_CHANNEL_ID:-}
+  VK_PAYHERO_WEBHOOK_SECRET: ${VK_PAYHERO_WEBHOOK_SECRET:-}
+  PYTHONPATH: /app/apps/api:/app/packages/security:/app/packages/document-processing:/app/services/verification:/app/services/notifications
+
+services:
+  # ---------------------------------------------------------------- data tier
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-verifyke}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verifyke}
+      POSTGRES_DB: ${POSTGRES_DB:-verifyke}
+      # Deterministic collation for reproducible text ordering in tests.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-verifyke} -d ${POSTGRES_DB:-verifyke}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [backend]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-verifyke-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in .env}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  # Creates the three buckets and keeps them private (no anonymous access).
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-verifyke-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in .env}
+      BUCKETS: ${VK_S3_BUCKET_CERTIFICATES:-verifyke-certificates} ${VK_S3_BUCKET_UPLOADS:-verifyke-uploads} ${VK_S3_BUCKET_INSTITUTION_DOCS:-verifyke-institution-docs}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        for bucket in $$BUCKETS; do
+          mc mb --ignore-existing "local/$$bucket"
+          mc anonymous set none "local/$$bucket"
+        done
+        mc ilm rule add --expire-days 30 local/$${VK_S3_BUCKET_UPLOADS:-verifyke-uploads} 2>/dev/null || true
+    networks: [backend]
+
+  # Development mail catcher (SMTP on 1025, web UI on 8025).
+  mailpit:
+    image: axllent/mailpit:v1.20
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    networks: [backend]
+
+  # Optional malware scanning (VK_MALWARE_SCANNER=clamav enables it for the API).
+  clamav:
+    image: clamav/clamav:1.4_base
+    restart: unless-stopped
+    profiles: [security]
+    networks: [backend]
+
+  # ---------------------------------------------------------------- application tier
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: verifyke-api:local
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    command:
+      - uvicorn
+      - verifyke.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips
+      - "*"
+      - --no-server-header
+    # Runs outstanding migrations, then serves. Serialised by the advisory lock
+    # Alembic takes, so several replicas may start at once safely.
+    entrypoint: ["/bin/sh", "-c", "alembic upgrade head && exec \"$$@\"", "--"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [backend]
+
+  # Celery worker: document processing, OCR/analysis, notifications, retention.
+  worker:
+    image: verifyke-api:local
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    command:
+      - celery
+      - -A
+      - verifyke.worker.celery_app
+      - worker
+      - --loglevel=INFO
+      - --concurrency=4
+      - --max-tasks-per-child=200
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A verifyke.worker.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    networks: [backend]
+
+  # Celery beat: scheduled jobs (retention sweeps, stale-verification cleanup,
+  # certificate expiry reminders). Exactly one instance may run.
+  beat:
+    image: verifyke-api:local
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    command:
+      - celery
+      - -A
+      - verifyke.worker.celery_app
+      - beat
+      - --loglevel=INFO
+    networks: [backend]
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.web
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_WEB_BASE_URL: ${NEXT_PUBLIC_WEB_BASE_URL:-http://localhost:3000}
+    image: verifyke-web:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      API_INTERNAL_URL: http://api:8000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_PUBLIC_WEB_BASE_URL: ${NEXT_PUBLIC_WEB_BASE_URL:-http://localhost:3000}
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    networks: [backend]
+
+  # Single ingress. In production this is where TLS terminates (see
+  # infrastructure/nginx/conf.d and docs/deployment.md).
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_started
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx-logs:/var/log/nginx
+    ports:
+      - "${NGINX_HTTP_PORT:-8080}:80"
+    networks: [backend]
+
+  # ---------------------------------------------------------------- observability (opt-in)
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    profiles: [observability]
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [backend]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  nginx-logs:
+  prometheus-data:
+
+networks:
+  backend:
+    driver: bridge

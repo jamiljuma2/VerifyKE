@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Base layer: readable defaults for a service that must remain usable on cheap
+ * Android phones over slow connections (a large part of the Kenyan market).
+ */
+@layer base {
+  :root {
+    --font-sans: ui-sans-serif;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-muted-soft text-slate-900 antialiased;
+  }
+
+  /* Keyboard users must always be able to see where focus is. */
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-brand-500;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-balance font-semibold tracking-tight text-slate-900;
+  }
+
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+
+  .field-input {
+    @apply w-full rounded-lg border border-muted-border bg-white px-3 py-2.5 text-base
+      text-slate-900 placeholder:text-slate-400
+      focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200;
+  }
+}
