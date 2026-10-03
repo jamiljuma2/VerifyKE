@@ -3,7 +3,7 @@
 Tenant isolation is enforced in two independent places:
 
 1. Application level - every query goes through a repository that filters by the
-   authenticated user's institution (see ``verifyke.core.tenant`` from Phase 3).
+   authenticated user's institution (see :mod:`verifyke.core.tenant`).
 2. Database level - PostgreSQL row-level security policies key on the
    transaction-local setting ``app.current_institution`` set by
    :func:`set_tenant_context`. A developer who forgets a filter in a query still
@@ -17,7 +17,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import MetaData, text
+from sqlalchemy import DateTime, MetaData, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -28,7 +28,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from uuid6 import uuid7
 
 from verifyke.core.config import Settings, get_settings
-from verifyke.core.ids import utcnow
 
 # Deterministic constraint names keep Alembic migrations stable and readable.
 NAMING_CONVENTION = {
@@ -58,20 +57,32 @@ class UUIDPrimaryKeyMixin:
 
 
 class TimestampMixin:
-    """Created/updated timestamps maintained by the database."""
+    """Created/updated timestamps maintained by the database.
+
+    ``timestamptz`` and database defaults, per ``docs/database.md``: the value
+    is UTC and cannot be shifted by the clock of whichever application server
+    happened to write the row. ``updated_at`` is refreshed by a trigger rather
+    than by the ORM, so a bulk SQL update cannot silently skip it.
+    """
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"), nullable=False, index=True
+        DateTime(timezone=True), server_default=text("now()"), nullable=False, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"), onupdate=utcnow, nullable=False
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
     )
 
 
 class SoftDeleteMixin:
-    """Soft deletion: records are never physically removed by application code."""
+    """Soft deletion: records are never physically removed by application code.
 
-    deleted_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
+    Audit and verification records have no ``deleted_at`` at all - they are
+    retained, not hidden.
+    """
+
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None, index=True
+    )
 
     @property
     def is_deleted(self) -> bool:
@@ -136,11 +147,23 @@ async def set_tenant_context(session: AsyncSession, institution_id: uuid.UUID | 
     ``SET LOCAL`` scopes the setting to the current transaction, so a pooled
     connection can never leak one tenant's context into another request.
     Pass ``None`` for platform-level (super admin / public) operations.
+
+    Prefer :func:`verifyke.core.tenant.apply_tenant`, which takes the request's
+    :class:`~verifyke.core.tenant.TenantContext` instead of a bare id.
     """
     value = str(institution_id) if institution_id else ""
     await session.execute(
         text("SELECT set_config('app.current_institution', :value, true)"), {"value": value}
     )
+
+
+async def clear_tenant_context(session: AsyncSession) -> None:
+    """Clear the tenant setting for the current transaction.
+
+    Used by platform-level operations (public verification, cross-tenant
+    reporting) that must not inherit a tenant scope left on the connection.
+    """
+    await set_tenant_context(session, None)
 
 
 async def check_database(session: AsyncSession) -> None:
