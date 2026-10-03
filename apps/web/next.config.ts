@@ -6,14 +6,16 @@ import type { NextConfig } from "next";
  * Security posture:
  * - `standalone` output keeps the container image small (see Dockerfile.web).
  * - `poweredByHeader: false` avoids advertising the framework version.
- * - A strict Content-Security-Policy is applied to every response. `unsafe-inline`
- *   is required only for styles (Tailwind/Next inject a small amount of inline
- *   CSS); scripts are restricted to same-origin.
  * - Images render through Next's optimiser so that untrusted documents are never
  *   served straight from their origin.
+ *
+ * Content-Security-Policy is **not** set here. It is applied per request by
+ * `src/middleware.ts`, which mints a nonce so Next's inline bootstrap scripts are
+ * allowed without resorting to `'unsafe-inline'`. A policy declared statically
+ * here would be sent alongside the nonce-based one, and the browser enforces the
+ * *intersection* of multiple policies - which would block the very scripts that
+ * nonce was added to permit.
  */
-const isProduction = process.env.NODE_ENV === "production";
-
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -23,22 +25,6 @@ const securityHeaders = [
     value: "camera=(self), geolocation=(), microphone=(), payment=()",
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      "base-uri 'self'",
-      "object-src 'none'",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "script-src 'self' " + (isProduction ? "" : "'unsafe-eval'"),
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self' " + (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"),
-      "upgrade-insecure-requests",
-    ].join("; "),
-  },
 ];
 
 const nextConfig: NextConfig = {
